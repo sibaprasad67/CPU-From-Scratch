@@ -1,0 +1,5 @@
+   simulation/*.vcd
+   simulation/*.vvp
+   *.vcd
+   *.vvp
+   __pycache__/
