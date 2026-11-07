@@ -1,4 +1,4 @@
-module register_file (
+module register_file #(parameter BYPASS = 1) (
     input         clk,
     input         reset,
     input         write_en,
@@ -22,10 +22,10 @@ module register_file (
     end
 
     assign read_data1 = (read_reg1 == 5'd0)                  ? 32'd0 :
-                        (write_en && write_reg == read_reg1) ? write_data :
+                        (BYPASS && write_en && write_reg == read_reg1) ? write_data :
                                                                regs[read_reg1];
 
     assign read_data2 = (read_reg2 == 5'd0)                  ? 32'd0 :
-                        (write_en && write_reg == read_reg2) ? write_data :
+                        (BYPASS && write_en && write_reg == read_reg2) ? write_data :
                                                                regs[read_reg2];
 endmodule
