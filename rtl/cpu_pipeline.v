@@ -4,10 +4,10 @@ module cpu_pipeline #(
     input clk,
     input reset
 );
-    // ---- control hooks (tied off now; Phases 12 and 14 drive them) ----
-    wire stall ;   // hold PC and IF/ID           (Phase 12)
-    wire flush_ifid = 1'b0;   // turn IF/ID into a bubble    (Phase 14)
-    wire flush_idex = stall;   // turn ID/EX into a bubble    (Phases 12, 14)
+    // ---- control hooks (Phase 12 drives stall; Phase 14 drives flush_ifid) ----
+    wire stall;                // from hazard_unit (bottom of file)
+    wire flush_ifid = 1'b0;    // turn IF/ID into a bubble    (Phase 14)
+    wire flush_idex = stall;   // stall -> bubble into ID/EX  (Phases 12, 14)
 
     // =====================================================================
     // IF: instruction fetch
@@ -109,9 +109,10 @@ module cpu_pipeline #(
 
     alu_control u_aluctrl (.alu_op(idex_alu_op), .funct3(idex_funct3),
                            .funct7_5(idex_funct7_5), .alu_ctrl(ex_alu_ctrl));
-    mux2 #(.WIDTH(32)) u_alusrc (.a(idex_rd2), .b(idex_imm),
+    wire [31:0] fwd_a, fwd_b;   // forwarded operands (driven at bottom of file)
+    mux2 #(.WIDTH(32)) u_alusrc (.a(fwd_b), .b(idex_imm),
                                  .sel(idex_alu_src), .y(ex_alu_b));
-    alu u_alu (.a(idex_rd1), .b(ex_alu_b), .alu_ctrl(ex_alu_ctrl),
+    alu u_alu (.a(fwd_a), .b(ex_alu_b), .alu_ctrl(ex_alu_ctrl),
                .result(ex_alu_result), .zero(ex_zero));
 
     adder #(.WIDTH(32)) u_target (.a(idex_pc), .b(idex_imm), .sum(pc_target_ex));
@@ -133,7 +134,7 @@ module cpu_pipeline #(
         end else begin
             exmem_reg_write <= idex_reg_write; exmem_mem_read <= idex_mem_read;
             exmem_mem_write <= idex_mem_write; exmem_result_src <= idex_result_src;
-            exmem_alu_result <= ex_alu_result; exmem_rd2 <= idex_rd2;
+            exmem_alu_result <= ex_alu_result; exmem_rd2 <= fwd_b;
             exmem_pc_plus4 <= ex_pc_plus4;     exmem_rd <= idex_rd;
             exmem_instr <= idex_instr;
         end
@@ -174,11 +175,29 @@ module cpu_pipeline #(
     assign wb_data = (memwb_result_src == 2'b01) ? memwb_mem_rdata :
                      (memwb_result_src == 2'b10) ? memwb_pc_plus4  :
                                                    memwb_alu_result;
-    // ---------- Hazard detection (Phase 12) ----------
+
+    // ---------- Hazard detection (Phase 12, load-use only since Phase 13) ----------
     hazard_unit u_hazard (
         .id_opcode(id_opcode), .id_rs1(id_rs1), .id_rs2(id_rs2),
-        .idex_reg_write(idex_reg_write), .idex_rd(idex_rd),
-        .exmem_reg_write(exmem_reg_write), .exmem_rd(exmem_rd),
+        .idex_mem_read(idex_mem_read), .idex_rd(idex_rd),
         .stall(stall)
-    );                                               
+    );
+
+    // ---------- Forwarding (Phase 13) ----------
+    wire [1:0]  fwd_a_sel, fwd_b_sel;
+    // value sitting in EX/MEM: jal's result is pc+4, everything else the ALU result
+    wire [31:0] exmem_fwd_val = (exmem_result_src == 2'b10) ? exmem_pc_plus4
+                                                            : exmem_alu_result;
+
+      forwarding_unit u_fwd (
+        .idex_rs1(idex_rs1), .idex_rs2(idex_rs2),
+        .exmem_reg_write(exmem_reg_write), .exmem_rd(exmem_rd),
+        .wb_reg_write(wb_reg_write), .wb_rd(wb_rd),
+        .forward_a(fwd_a_sel), .forward_b(fwd_b_sel)
+    );
+
+    assign fwd_a = (fwd_a_sel == 2'b10) ? exmem_fwd_val :
+                   (fwd_a_sel == 2'b01) ? wb_data       : idex_rd1;
+    assign fwd_b = (fwd_b_sel == 2'b10) ? exmem_fwd_val :
+                   (fwd_b_sel == 2'b01) ? wb_data       : idex_rd2;
 endmodule
