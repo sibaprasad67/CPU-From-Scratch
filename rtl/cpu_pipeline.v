@@ -6,15 +6,15 @@ module cpu_pipeline #(
 );
     // ---- control hooks (Phase 12 drives stall; Phase 14 drives flush_ifid) ----
     wire stall;                // from hazard_unit (bottom of file)
-    wire flush_ifid = 1'b0;    // turn IF/ID into a bubble    (Phase 14)
-    wire flush_idex = stall;   // stall -> bubble into ID/EX  (Phases 12, 14)
+    wire pc_src;
+    wire flush_ifid = pc_src;    // turn IF/ID into a bubble    (Phase 14)
+    wire flush_idex = stall | pc_src;   // stall -> bubble into ID/EX  (Phases 12, 14)
 
     // =====================================================================
     // IF: instruction fetch
     // =====================================================================
     wire [31:0] pc, pc_plus4_if, pc_next, instr_if;
     wire [31:0] pc_target_ex;
-    wire        pc_src;
 
     program_counter u_pc (.clk(clk), .reset(reset), .enable(~stall),
                           .pc_next(pc_next), .pc(pc));
