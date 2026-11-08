@@ -5,9 +5,9 @@ module cpu_pipeline #(
     input reset
 );
     // ---- control hooks (tied off now; Phases 12 and 14 drive them) ----
-    wire stall      = 1'b0;   // hold PC and IF/ID           (Phase 12)
+    wire stall ;   // hold PC and IF/ID           (Phase 12)
     wire flush_ifid = 1'b0;   // turn IF/ID into a bubble    (Phase 14)
-    wire flush_idex = 1'b0;   // turn ID/EX into a bubble    (Phases 12, 14)
+    wire flush_idex = stall;   // turn ID/EX into a bubble    (Phases 12, 14)
 
     // =====================================================================
     // IF: instruction fetch
@@ -174,4 +174,11 @@ module cpu_pipeline #(
     assign wb_data = (memwb_result_src == 2'b01) ? memwb_mem_rdata :
                      (memwb_result_src == 2'b10) ? memwb_pc_plus4  :
                                                    memwb_alu_result;
+    // ---------- Hazard detection (Phase 12) ----------
+    hazard_unit u_hazard (
+        .id_opcode(id_opcode), .id_rs1(id_rs1), .id_rs2(id_rs2),
+        .idex_reg_write(idex_reg_write), .idex_rd(idex_rd),
+        .exmem_reg_write(exmem_reg_write), .exmem_rd(exmem_rd),
+        .stall(stall)
+    );                                               
 endmodule
