@@ -1,0 +1,32 @@
+00500093 // 0x00: addi x1, x0, 5
+00102023 // 0x04: sw   x1, 0(x0)
+00200093 // 0x08: addi x1, x0, 2
+00102223 // 0x0c: sw   x1, 4(x0)
+00900093 // 0x10: addi x1, x0, 9
+00102423 // 0x14: sw   x1, 8(x0)
+00100093 // 0x18: addi x1, x0, 1
+00102623 // 0x1c: sw   x1, 12(x0)
+00700093 // 0x20: addi x1, x0, 7
+00102823 // 0x24: sw   x1, 16(x0)
+00300093 // 0x28: addi x1, x0, 3
+00102a23 // 0x2c: sw   x1, 20(x0)
+00800093 // 0x30: addi x1, x0, 8
+00102c23 // 0x34: sw   x1, 24(x0)
+00400093 // 0x38: addi x1, x0, 4
+00102e23 // 0x3c: sw   x1, 28(x0)
+00800293 // 0x40: addi x5, x0, 8          n = 8
+fff28293 // 0x44: addi x5, x5, -1         outer: one fewer compare each pass
+02028a63 // 0x48: beq  x5, x0, done
+00000313 // 0x4c: addi x6, x0, 0          x6 = byte address of the pair
+00028393 // 0x50: addi x7, x5, 0          x7 = compares left this pass
+00032403 // 0x54: lw   x8, 0(x6)          inner: load pair
+00432483 // 0x58: lw   x9, 4(x6)
+0084a533 // 0x5c: slt  x10, x9, x8        x10 = 1 if out of order
+00050663 // 0x60: beq  x10, x0, noswap
+00932023 // 0x64: sw   x9, 0(x6)          swap
+00832223 // 0x68: sw   x8, 4(x6)
+00430313 // 0x6c: addi x6, x6, 4          noswap: next pair
+fff38393 // 0x70: addi x7, x7, -1
+fe0390e3 // 0x74: bne  x7, x0, inner
+fcdff06f // 0x78: jal  x0, outer
+00100f93 // 0x7c: addi x31, x0, 1         done flag
