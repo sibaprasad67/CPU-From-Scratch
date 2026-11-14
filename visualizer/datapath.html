@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPU Datapath | 5-Stage Pipelined RISC-V Core</title>
+<style>
+:root{--bg:#070b14;--panel:#0e1524;--line:#223049;--dim:#2a3752;--txt:#e6ecf7;--mut:#8697b5;--cy:#38bdf8;--gr:#34d399;--am:#fbbf24;--rs:#fb7185}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:Segoe UI,system-ui,sans-serif}
+.mono{font-family:Consolas,Menlo,monospace}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:18px;letter-spacing:.5px}
+h1 small{display:block;font-size:12px;font-weight:400;color:var(--mut);letter-spacing:0;margin-top:2px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 20px}
+button,select{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+button:hover{border-color:var(--cy)}
+button.on{background:var(--cy);color:#04121c;border-color:var(--cy);font-weight:700}
+input[type=range]{flex:1;min-width:200px;accent-color:var(--cy)}
+.cyc{padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:14px;white-space:nowrap}
+a{color:var(--cy);font-size:13px;text-decoration:none}
+#banner{display:flex;gap:10px;padding:0 20px;min-height:34px;flex-wrap:wrap}
+.pill{padding:6px 12px;border-radius:8px;font-size:13px;border:1px solid}
+.pill b{letter-spacing:.5px}
+.stall{background:#3a2a05;border-color:var(--am);color:#fde68a}
+.flush{background:#3b0f1a;border-color:var(--rs);color:#fecdd3}
+.fwd{background:#052e22;border-color:var(--gr);color:#a7f3d0}
+.wrap{padding:0 20px 20px}
+svg{width:100%;height:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;display:block}
+.grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:16px}
+@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h3{margin:0 0 10px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+.regs{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
+.reg{border:1px solid var(--line);border-radius:6px;padding:3px 5px;font-size:11px;background:#0a101d;transition:background .3s,border-color .3s}
+.reg i{display:block;font-style:normal;color:var(--mut);font-size:10px}
+.reg b{font-size:13px}
+.reg.rd{border-color:var(--cy)}
+.reg.wr{background:#064e3b;border-color:var(--gr)}
+.bars{display:flex;gap:8px;align-items:flex-end;height:130px;margin-bottom:10px}
+.bars div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;font-size:12px}
+.bars span{width:100%;background:linear-gradient(#38bdf8,#0369a1);border-radius:4px 4px 0 0;transition:height .05s}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{background:#0a101d;border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}
+.stat i{display:block;font-style:normal;font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+.stat b{font-size:20px}
+.list{max-height:300px;overflow:auto;margin-top:10px;border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td{padding:3px 8px;border-bottom:1px solid #141d30}
+.tag{display:inline-block;font-size:9px;font-weight:800;padding:1px 4px;border-radius:3px;margin-right:3px;color:#04121c}
+.kiosk body{font-size:120%}
+</style>
+</head>
+<body>
+<header>
+  <h1>5-STAGE PIPELINED CPU: LIVE DATAPATH<small>Every value on this page comes from simulating the real Verilog design (Icarus Verilog), cycle by cycle.</small></h1>
+  <a href="index.html">Source code &amp; explainer view &rarr;</a>
+</header>
+
+<div class="bar">
+  <select id="prog"><option value="bubble_sort">Bubble Sort (8 numbers)</option><option value="fibonacci">Fibonacci (10 numbers)</option></select>
+  <button id="first">&#9198;</button><button id="prev">&#9664;</button>
+  <button id="play" class="on">&#9654; Play</button>
+  <button id="next">&#9654;</button><button id="last">&#9197;</button>
+  <input type="range" id="slider" min="1" value="1">
+  <div class="cyc mono" id="cyc"></div>
+  <span style="color:var(--mut);font-size:13px">Speed</span>
+  <button class="sp" data-s="900">0.5x</button><button class="sp on" data-s="400">1x</button><button class="sp" data-s="150">3x</button><button class="sp" data-s="40">10x</button>
+  <button id="kiosk">&#9733; Kiosk</button>
+</div>
+<div id="banner"></div>
+
+<div class="wrap">
+<svg id="dp" viewBox="0 0 1300 520" font-family="Consolas,Menlo,monospace"></svg>
+
+<div class="grid2">
+  <div>
+    <div class="card"><h3>Register file x0 .. x31 &nbsp;<span style="text-transform:none;letter-spacing:0">(blue = being read in ID, green = written back this cycle)</span></h3><div class="regs" id="regs"></div></div>
+    <div class="card" style="margin-top:16px"><h3>Data memory</h3><div class="bars" id="bars"></div><div class="regs" id="mem"></div></div>
+  </div>
+  <div>
+    <div class="card"><h3>Live performance</h3>
+      <div class="stats">
+        <div class="stat"><i>Cycles</i><b id="s-c">0</b></div>
+        <div class="stat"><i>Retired</i><b id="s-r" style="color:var(--gr)">0</b></div>
+        <div class="stat"><i>Stalls</i><b id="s-s" style="color:var(--rs)">0</b></div>
+        <div class="stat"><i>Flushes</i><b id="s-f" style="color:var(--am)">0</b></div>
+      </div>
+      <div style="margin-top:10px;display:flex;justify-content:space-between;padding:8px 12px;background:#0a101d;border:1px solid var(--line);border-radius:8px"><span style="color:var(--mut)">CPI so far (ideal = 1.00)</span><b class="mono" id="s-cpi">--</b></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Program (colored tags = which stage holds the instruction)</h3><div class="list"><table><tbody id="listing"></tbody></table></div></div>
+  </div>
+</div>
+</div>
+
+<script src="data/traces.js"></script>
+<script>
+(function(){
+var T=window.CPU_TRACES;
+if (!T) {
+  document.body.innerHTML = '<div style="padding:40px;color:#f87171;font-family:sans-serif;text-align:center"><h2>Error: window.CPU_TRACES not found</h2><p>Make sure visualizer/data/traces.js is present.</p></div>';
+  return;
+}
+var prog='bubble_sort', idx=0, playing=true, speed=400, timer=null, kiosk=false;
+var NS='http://www.w3.org/2000/svg';
+var $=function(id){return document.getElementById(id)};
+var STG=['IF','ID','EX','MEM','WB'];
+var NAMES={IF:'FETCH',ID:'DECODE',EX:'EXECUTE',MEM:'MEMORY',WB:'WRITE BACK'};
+var DIM='#2a3752';
+
+function col(pc){return 'hsl('+(((pc/4)%8)*45+190)%360+',85%,62%)';}
+function hex(n,w){return '0x'+(n>>>0).toString(16).toUpperCase().padStart(w||8,'0');}
+function parse(asm){
+  var m=asm.match(/^(\w+)\s*(.*)$/); var op=m?m[1]:'nop';
+  var xs=[]; (asm.match(/x\d+/g)||[]).forEach(function(r){xs.push(+r.slice(1));});
+  if(['add','sub','and','or','slt'].indexOf(op)>=0) return {op:op,rd:xs[0],rs:[xs[1],xs[2]]};
+  if(op==='addi'||op==='lw') return {op:op,rd:xs[0],rs:[xs[1]]};
+  if(op==='sw') return {op:op,rd:null,rs:[xs[1],xs[0]]};
+  if(op==='beq'||op==='bne') return {op:op,rd:null,rs:[xs[0],xs[1]]};
+  if(op==='jal') return {op:op,rd:xs[0],rs:[]};
+  return {op:op,rd:null,rs:[]};
+}
+
+/* ---------- build static SVG ---------- */
+var svg=$('dp'), S='';
+function R(id,x,y,w,h,label,sub,rx){
+  return '<g id="'+id+'"><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(rx||8)+'" fill="#0a101d" stroke="'+DIM+'" stroke-width="2"/>'
+   +'<text x="'+(x+w/2)+'" y="'+(y+22)+'" text-anchor="middle" fill="#cbd5e1" font-size="13" font-weight="700">'+label+'</text>'
+   +'<text id="'+id+'-v" x="'+(x+w/2)+'" y="'+(y+h-12)+'" text-anchor="middle" fill="#8697b5" font-size="12">'+(sub||'')+'</text></g>';
+}
+function W(id,d){return '<path id="'+id+'" d="'+d+'" fill="none" stroke="'+DIM+'" stroke-width="3" stroke-linejoin="round" marker-end="url(#ar)"/>';}
+S+='<defs><marker id="ar" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 z" fill="#64748b"/></marker></defs>';
+// stage backgrounds
+var reg=[['IF',20,270],['ID',280,560],['EX',570,880],['MEM',890,1110],['WB',1120,1285]];
+reg.forEach(function(r){S+='<rect id="bg-'+r[0]+'" x="'+r[1]+'" y="76" width="'+(r[2]-r[1])+'" height="440" rx="10" fill="#0b1220" stroke="#1a2438" stroke-dasharray="4 4"/>';});
+// wires (drawn first so boxes sit on top)
+S+=W('w-bypass','M842 372 L1050 372');
+S+=W('w-wbback','M1150 262 L1150 412 L452 412 L452 316');
+S+=W('w-fwd1','M831 400 L831 430 L560 430 L560 295 L580 295 M560 205 L580 205');
+S+=W('w-fwd2','M1061 400 L1061 442 L568 442 L568 305 L580 305 M568 215 L580 215');
+S+=W('w-branch','M700 195 L700 100 L10 100 L10 250 L22 250');
+S+=W('w-pc-imem','M92 250 L130 250');
+S+=W('w-imem-ifid','M250 250 L270 250');
+S+=W('w-ifid-rf','M292 230 L330 230 M292 275 L330 275');
+S+=W('w-ifid-ctl','M292 135 L330 135');
+S+=W('w-ifid-imm','M292 358 L330 358');
+S+=W('w-rf-idex','M470 215 L520 215 M470 285 L520 285');
+S+=W('w-imm-idex','M440 358 L520 358');
+S+=W('w-ctl-idex','M440 135 L520 135');
+S+=W('w-idex-mux','M542 205 L580 205 M542 295 L580 295');
+S+=W('w-mux-alu','M606 205 L650 205 M606 295 L650 295');
+S+=W('w-alu-exmem','M742 250 L820 250');
+S+=W('w-exmem-dmem','M842 250 L890 250');
+S+=W('w-dmem-memwb','M1010 250 L1050 250');
+S+=W('w-memwb-wb','M1072 250 L1120 250');
+S+=W('w-pc4','M62 215 L62 160 L62 138');
+// blocks
+S+=R('b-pcmux',22,222,22,56,'','',6);
+S+='<text x="33" y="254" text-anchor="middle" fill="#cbd5e1" font-size="10" font-weight="700" transform="rotate(-90 33 250)">MUX</text>';
+S+=R('b-pc',50,215,44,70,'PC','',8);
+S+=R('b-add',36,118,52,34,'+4','',8);
+S+=R('b-imem',130,200,120,100,'INSTR MEM','',8);
+S+=R('b-ifid',270,110,22,290,'','',4);
+S+='<text x="281" y="255" text-anchor="middle" fill="#fff" font-size="12" font-weight="800" transform="rotate(-90 281 255)">IF / ID</text>';
+S+=R('b-ctl',330,110,110,50,'CONTROL','',8);
+S+=R('b-rf',330,190,140,126,'REGISTER FILE','',8);
+S+=R('b-imm',330,334,110,48,'IMM GEN','',8);
+S+=R('b-haz',335,452,140,50,'HAZARD UNIT','',8);
+S+=R('b-idex',520,110,22,290,'','',4);
+S+='<text x="531" y="255" text-anchor="middle" fill="#fff" font-size="12" font-weight="800" transform="rotate(-90 531 255)">ID / EX</text>';
+S+=R('b-muxa',580,180,26,50,'','',6);
+S+=R('b-muxb',580,270,26,50,'','',6);
+S+='<text x="593" y="209" text-anchor="middle" fill="#cbd5e1" font-size="12" font-weight="800">A</text><text x="593" y="299" text-anchor="middle" fill="#cbd5e1" font-size="12" font-weight="800">B</text>';
+S+='<polygon id="b-alu" points="650,180 742,215 742,285 650,320" fill="#0a101d" stroke="'+DIM+'" stroke-width="2"/>';
+S+='<text x="692" y="242" text-anchor="middle" fill="#cbd5e1" font-size="15" font-weight="800">ALU</text><text id="alu-op" x="692" y="262" text-anchor="middle" fill="#8697b5" font-size="12"></text>';
+S+=R('b-fwd',610,452,150,50,'FORWARDING UNIT','',8);
+S+=R('b-exmem',820,110,22,290,'','',4);
+S+='<text x="831" y="255" text-anchor="middle" fill="#fff" font-size="12" font-weight="800" transform="rotate(-90 831 255)">EX / MEM</text>';
+S+=R('b-dmem',890,200,120,100,'DATA MEM','',8);
+S+=R('b-memwb',1050,110,22,290,'','',4);
+S+='<text x="1061" y="255" text-anchor="middle" fill="#fff" font-size="12" font-weight="800" transform="rotate(-90 1061 255)">MEM / WB</text>';
+S+='<circle id="b-wb" cx="1135" cy="250" r="16" fill="#0a101d" stroke="'+DIM+'" stroke-width="2"/><text x="1135" y="254" text-anchor="middle" fill="#cbd5e1" font-size="10" font-weight="800">WB</text>';
+// value labels
+S+='<text id="t-pc" x="72" y="272" text-anchor="middle" fill="#fff" font-size="11"></text>';
+S+='<text id="t-fwd-label" x="800" y="456" fill="#8697b5" font-size="11"></text>';
+S+='<text id="t-alu" x="781" y="240" text-anchor="middle" fill="#fff" font-size="12"></text>';
+S+='<text id="t-wb" x="1150" y="395" text-anchor="middle" fill="#fff" font-size="12"></text>';
+S+='<text id="t-br" x="360" y="92" fill="#fecdd3" font-size="12"></text>';
+S+='<text x="660" y="424" fill="#6b7c9c" font-size="10">forwarding bus (EX/MEM result)</text>';
+S+='<text x="900" y="458" fill="#6b7c9c" font-size="10">forwarding bus (MEM/WB result)</text>';
+S+='<text x="700" y="406" fill="#6b7c9c" font-size="10" transform="translate(0,0)">write-back to register file</text>';
+S+='<text x="860" y="364" fill="#6b7c9c" font-size="10">ALU result bypasses memory</text>';
+// chips
+var chips={IF:[40,220],ID:[300,220],EX:[570,220],MEM:[850,200],WB:[1070,200]};
+STG.forEach(function(s){var c=chips[s];
+  S+='<g id="chip-'+s+'"><rect x="'+c[0]+'" y="6" width="'+c[1]+'" height="58" rx="10" fill="#0a101d" stroke="'+DIM+'" stroke-width="2.5"/>'
+   +'<text id="chl-'+s+'" x="'+(c[0]+c[1]/2)+'" y="24" text-anchor="middle" fill="#8697b5" font-size="11" font-weight="700"></text>'
+   +'<text id="cha-'+s+'" x="'+(c[0]+c[1]/2)+'" y="48" text-anchor="middle" fill="#fff" font-size="16" font-weight="800"></text>'
+   +'<text id="chx-'+s+'" x="'+(c[0]+c[1]/2)+'" y="24" text-anchor="middle" fill="#fb7185" font-size="12" font-weight="900" opacity="0"></text></g>';
+});
+svg.innerHTML=S;
+var el=function(id){return document.getElementById(id)};
+
+/* ---------- register / memory / listing grids ---------- */
+var rg=$('regs'); var rh='';
+for(var r=0;r<32;r++) rh+='<div class="reg mono" id="r'+r+'"><i>x'+r+'</i><b>0</b></div>';
+rg.innerHTML=rh;
+var mh='';for(var m=0;m<16;m++) mh+='<div class="reg mono" id="m'+m+'"><i>M['+m+']</i><b>0</b></div>';
+$('mem').innerHTML=mh;
+var bh='';for(var b=0;b<8;b++) bh+='<div><b id="bv'+b+'">0</b><span id="bb'+b+'" style="height:2px"></span><i style="font-size:10px;color:#8697b5;font-style:normal">M['+b+']</i></div>';
+$('bars').innerHTML=bh;
+
+function setProg(p){
+  prog=p; idx=0; var N=T[p].cycles.length; $('slider').max=N; $('slider').value=1;
+  var h=''; T[p].program.forEach(function(ins,i){h+='<tr id="l'+i+'"><td class="mono" style="color:#8697b5">'+hex(ins.pc,2)+'</td><td class="mono" id="lt'+i+'" style="width:70px"></td><td class="mono">'+ins.asm+'</td></tr>';});
+  $('listing').innerHTML=h; render();
+}
+
+function stroke(id,c,w){var e=el(id); if(!e)return; var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('stroke',c); if(w) t.setAttribute('stroke-width',w);}
+function fill(id,c){var e=el(id); if(!e)return; var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('fill',c);}
+function wire(ids,c,on){ids.forEach(function(id){var e=el(id); if(e){e.setAttribute('stroke',on?c:DIM); e.setAttribute('stroke-width',on?4:3); e.style.filter=on?'drop-shadow(0 0 4px '+c+')':'none';}});}
+function glow(id,c,on){var e=el(id); if(!e)return; var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('stroke',on?c:DIM); t.setAttribute('fill',on?c.replace('hsl','hsla').replace(')',',0.16)'):'#0a101d'); t.setAttribute('stroke-width',on?3:2);}
+
+var cum=null;
+function buildCum(){ // cumulative stats per cycle
+  var a=[],r=0,s=0,f=0;
+  T[prog].cycles.forEach(function(c){ if(!c.stages.WB.bubble) r++; s+=c.stall; f+=c.flush; a.push([r,s,f]); });
+  cum=a;
+}
+
+function render(){
+  var tr=T[prog]; if(!cum||cum.prog!==prog){buildCum(); cum.prog=prog;}
+  var c=tr.cycles[idx], N=tr.cycles.length, st=c.stages;
+  $('slider').value=idx+1; $('cyc').innerHTML='Cycle <b style="color:#38bdf8">'+c.cycle+'</b> of '+N;
+  var info={}, colr={};
+  STG.forEach(function(s){
+    var x=st[s]; info[s]=parse(x.asm); colr[s]=x.bubble?DIM:col(x.pc);
+    var on=!x.bubble;
+    el('chl-'+s).textContent=s+' · '+NAMES[s]+(on?'  PC '+hex(x.pc,2):'');
+    el('cha-'+s).textContent=on?x.asm:'bubble (nop)';
+    el('cha-'+s).setAttribute('fill',on?'#fff':'#64748b');
+    glow('chip-'+s,colr[s],on);
+    el('bg-'+s).setAttribute('fill',on?'#0b1220':'#090e19');
+    el('chx-'+s).setAttribute('opacity',0); el('chl-'+s).setAttribute('opacity',1);
+  });
+  var IF=!st.IF.bubble, ID=!st.ID.bubble, EX=!st.EX.bubble, MEM=!st.MEM.bubble, WB=!st.WB.bubble;
+  // IF
+  glow('b-pc',colr.IF,IF); glow('b-imem',colr.IF,IF); glow('b-add',colr.IF,IF); glow('b-pcmux',colr.IF,IF);
+  wire(['w-pc-imem','w-imem-ifid','w-pc4'],colr.IF,IF);
+  el('t-pc').textContent=hex(st.IF.pc,2); el('b-imem-v').textContent=hex(parseInt(st.IF.hex,16));
+  // ID
+  glow('b-ifid',colr.ID,ID); glow('b-rf',colr.ID,ID); glow('b-ctl',colr.ID,ID); glow('b-imm',colr.ID,ID);
+  wire(['w-ifid-rf','w-ifid-ctl','w-ifid-imm','w-rf-idex','w-imm-idex','w-ctl-idex'],colr.ID,ID);
+  var rs=info.ID.rs.filter(function(v){return v!==undefined;});
+  el('b-rf-v').textContent=ID&&rs.length?'reads '+rs.map(function(v){return 'x'+v}).join(', '):'';
+  // EX
+  glow('b-idex',colr.EX,EX); glow('b-alu',colr.EX,EX); glow('b-muxa',colr.EX,EX); glow('b-muxb',colr.EX,EX);
+  wire(['w-idex-mux','w-mux-alu','w-alu-exmem'],colr.EX,EX);
+  el('alu-op').textContent=EX?(info.EX.op==='lw'||info.EX.op==='sw'?'addr = rs1+imm':info.EX.op==='beq'||info.EX.op==='bne'?'compare':info.EX.op):'';
+  el('t-alu').textContent=EX?'= '+(c.alu_result|0):'';
+  // MEM
+  glow('b-exmem',colr.MEM,MEM); glow('b-dmem',colr.MEM,MEM&&(info.MEM.op==='lw'||info.MEM.op==='sw'));
+  var isMem=MEM&&(info.MEM.op==='lw'||info.MEM.op==='sw');
+  el('b-dmem-v').textContent=isMem?(info.MEM.op==='lw'?'READ':'WRITE'):(MEM?'(not used)':'');
+  wire(['w-exmem-dmem'],colr.MEM,isMem);
+  wire(['w-bypass'],colr.MEM,MEM&&!isMem);
+  wire(['w-dmem-memwb'],colr.MEM,isMem&&info.MEM.op==='lw');
+  // WB
+  glow('b-memwb',colr.WB,WB); 
+  var wr=c.wb.write&&WB;
+  glow('b-wb',colr.WB,WB); wire(['w-memwb-wb'],colr.WB,WB);
+  wire(['w-wbback'],colr.WB,wr);
+  el('t-wb').textContent=wr?('x'+c.wb.reg+' ← '+(c.wb.data|0)):'';
+  // forwarding
+  var fa=c.fwd_a,fb=c.fwd_b, nm={0:'RegFile',2:'EX/MEM',1:'MEM/WB'};
+  var f1=(fa===2||fb===2), f2=(fa===1||fb===1);
+  wire(['w-fwd1'],'#34d399',f1); wire(['w-fwd2'],'#34d399',f2);
+  glow('b-fwd','hsl(160,70%,50%)',f1||f2);
+  el('b-fwd-v').textContent=(f1||f2)?('A='+nm[fa]+'  B='+nm[fb]):'no forwarding';
+  if(f1||f2) {stroke('b-muxa',fa?'#34d399':colr.EX); stroke('b-muxb',fb?'#34d399':colr.EX);}
+  // hazard
+  var stall=c.stall===1;
+  glow('b-haz','hsl(40,95%,55%)',stall);
+  el('b-haz-v').textContent=stall?'STALL: load-use':'no hazard';
+  if(stall){
+    stroke('b-pc','#fbbf24',4); stroke('b-ifid','#fbbf24',4); stroke('b-imem','#fbbf24',4);
+    el('chx-IF').textContent='❄ FROZEN'; el('chx-IF').setAttribute('fill','#fbbf24'); el('chx-IF').setAttribute('opacity',1); el('chl-IF').setAttribute('opacity',0);
+    el('chx-ID').textContent='❄ HELD'; el('chx-ID').setAttribute('fill','#fbbf24'); el('chx-ID').setAttribute('opacity',1); el('chl-ID').setAttribute('opacity',0);
+  }
+  // flush
+  var fl=c.flush===1;
+  wire(['w-branch'],'#fb7185',fl);
+  glow('b-pcmux','hsl(350,90%,65%)',fl);
+  el('t-br').textContent=fl?('branch taken → new PC = '+hex(c.branch_target,2)):'';
+  if(fl){
+    ['IF','ID'].forEach(function(s){el('chx-'+s).textContent='✖ FLUSHED';el('chx-'+s).setAttribute('fill','#fb7185');el('chx-'+s).setAttribute('opacity',1);el('chl-'+s).setAttribute('opacity',0);stroke('chip-'+s,'#fb7185',3);});
+  }
+  // banners
+  var bn='';
+  if(stall) bn+='<div class="pill stall"><b>STALL</b> &nbsp;<span class="mono">'+st.ID.asm+'</span> needs data that <span class="mono">'+st.EX.asm+'</span> is still loading. IF/ID frozen, bubble inserted.</div>';
+  if(fl) bn+='<div class="pill flush"><b>BRANCH TAKEN</b> &nbsp;<span class="mono">'+st.EX.asm+'</span> resolved in EX. The 2 instructions behind it were wrong-path, so both are flushed.</div>';
+  if(f1||f2) bn+='<div class="pill fwd"><b>FORWARDING</b> &nbsp;ALU input fed straight from '+(f1?'EX/MEM':'')+(f1&&f2?' and ':'')+(f2?'MEM/WB':'')+' instead of waiting for the register file.</div>';
+  $('banner').innerHTML=bn;
+  // regs
+  var rd={}; if(ID) rs.forEach(function(v){rd[v]=1;});
+  for(var r=0;r<32;r++){var e=$('r'+r); e.lastChild.textContent=c.regs[r]|0; e.className='reg mono'+(wr&&c.wb.reg===r&&r!==0?' wr':(rd[r]?' rd':''));}
+  var mx=Math.max.apply(null,c.mem.slice(0,8).concat([9]));
+  for(var m=0;m<16;m++) $('m'+m).lastChild.textContent=c.mem[m]|0;
+  for(var b=0;b<8;b++){$('bv'+b).textContent=c.mem[b]|0; $('bb'+b).style.height=(2+(c.mem[b]/mx)*100)+'px';}
+  // stats
+  var cu=cum[idx]; $('s-c').textContent=c.cycle; $('s-r').textContent=cu[0]; $('s-s').textContent=cu[1]; $('s-f').textContent=cu[2];
+  $('s-cpi').textContent=cu[0]?(c.cycle/cu[0]).toFixed(2):'--';
+  // listing
+  var tags={};
+  STG.forEach(function(s){if(!st[s].bubble){var i=st[s].pc/4;(tags[i]=tags[i]||[]).push(s);}});
+  tr.program.forEach(function(ins,i){
+    var t=(tags[i]||[]).map(function(s){return '<span class="tag" style="background:'+colr[s]+'">'+s+'</span>';}).join('');
+    $('lt'+i).innerHTML=t; $('l'+i).style.background=tags[i]?'#13203a':'';
+  });
+  var first=null; ['WB','MEM','EX','ID','IF'].forEach(function(s){if(!st[s].bubble)first=st[s].pc/4;});
+  if(first!==null){
+    var row=$('l'+first);
+    if(row && row.parentNode && row.parentNode.parentNode && row.parentNode.parentNode.parentNode){
+      var box=row.parentNode.parentNode.parentNode;
+      box.scrollTop=row.offsetTop-box.clientHeight/2;
+    }
+  }
+}
+
+function step(d){
+  var N=T[prog].cycles.length; idx=Math.max(0,Math.min(N-1,idx+d)); render();
+  if(idx>=N-1&&playing){ if(kiosk){playing=false;setTimeout(function(){var p=prog==='bubble_sort'?'fibonacci':'bubble_sort';$('prog').value=p;setProg(p);playing=true;sched();},3500);} else {pause();} }
+}
+function sched(){clearTimeout(timer); if(playing) timer=setTimeout(function(){if(playing){step(1);sched();}},speed);}
+function play(){playing=true;$('play').innerHTML='&#10074;&#10074; Pause';$('play').classList.add('on');if(idx>=T[prog].cycles.length-1){idx=0;render();}sched();}
+function pause(){playing=false;$('play').innerHTML='&#9654; Play';$('play').classList.remove('on');clearTimeout(timer);}
+$('play').onclick=function(){playing?pause():play();};
+$('next').onclick=function(){pause();step(1)}; $('prev').onclick=function(){pause();step(-1)};
+$('first').onclick=function(){pause();idx=0;render()}; $('last').onclick=function(){pause();idx=T[prog].cycles.length-1;render()};
+$('slider').oninput=function(){idx=+this.value-1;render()};
+$('prog').onchange=function(){setProg(this.value);};
+Array.prototype.forEach.call(document.querySelectorAll('.sp'),function(b){b.onclick=function(){speed=+b.dataset.s;Array.prototype.forEach.call(document.querySelectorAll('.sp'),function(x){x.classList.remove('on')});b.classList.add('on');if(playing)sched();};});
+$('kiosk').onclick=function(){
+  kiosk=!kiosk;
+  this.classList.toggle('on',kiosk);
+  document.documentElement.classList.toggle('kiosk',kiosk);
+  if(kiosk){
+    setProg('bubble_sort');
+    speed=150;
+    Array.prototype.forEach.call(document.querySelectorAll('.sp'),function(x){x.classList.toggle('on', x.dataset.s==='150');});
+    play();
+  }
+};
+document.addEventListener('keydown',function(e){
+  if(e.key==='ArrowRight'){pause();step(1)} else if(e.key==='ArrowLeft'){pause();step(-1)} else if(e.key===' '){e.preventDefault();playing?pause():play();}});
+setProg('bubble_sort'); play();
+})();
+</script>
+</body>
+</html>

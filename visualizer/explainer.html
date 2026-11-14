@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verilog Source Code & Architecture Guide | CPU From Scratch</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Clean overrides for explainer view */
+    body { padding: 20px; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--cyan); text-decoration: none; font-weight: 700; font-size: 13px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); transition: all 0.2s ease; }
+    .back-btn:hover { background: #1e293b; border-color: var(--cyan); }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="brand">
+        <span class="brand-badge">Hardware Verification</span>
+        <div>
+          <div class="brand-title">VERILOG RTL & ARCHITECTURE EXPLAINER</div>
+          <div class="brand-sub">Full source code viewer and engineering viva guide for college tech fest</div>
+        </div>
+      </div>
+      <a href="index.html" class="back-btn">&larr; Back to Live CPU Datapath</a>
+    </header>
+
+    <!-- Source Code Browser -->
+    <section class="card-panel" style="margin-top: 14px;">
+      <div class="card-title-bar">
+        <span class="card-title">Verilog HDL Source Files (IEEE 1364-2001)</span>
+        <span style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);" id="current-filename">rtl/cpu_pipeline.v</span>
+      </div>
+
+      <div class="source-tab-container">
+        <!-- Sidebar File List -->
+        <div class="source-file-list" id="source-file-list"></div>
+
+        <!-- Code Viewer -->
+        <div class="source-viewer">
+          <pre class="source-code-pre"><code id="code-content">// Loading Verilog source code...</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Plain-English Explainer Cards -->
+    <section style="margin-top: 18px;">
+      <div style="font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cyan); margin-bottom: 12px;">
+        Plain-English Architecture Guide for Visitors & Judges
+      </div>
+
+      <div class="explainer-container">
+        <div class="explainer-card">
+          <div class="explainer-title">🏭 The 5-Stage Pipeline</div>
+          <p class="explainer-text">
+            Like a car assembly line, the CPU divides execution into 5 stages: <strong>IF (Fetch), ID (Decode), EX (Execute), MEM (Memory), and WB (Write-Back)</strong>. At any given clock cycle, 5 different instructions are active concurrently, providing up to a ~5x throughput speedup compared to a non-pipelined core.
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">⚡ Hardware Forwarding (Bypassing)</div>
+          <p class="explainer-text">
+            When an instruction needs an operand that was computed by the preceding instruction, the CPU cannot wait for the result to travel to the register file and be read back. The <strong>Forwarding Unit</strong> detects matching register addresses and routes the result directly from the ALU or Memory output into the ALU multiplexers.
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">⚠️ Load-Use Hazards & Stalls</div>
+          <p class="explainer-text">
+            When an instruction loads data from RAM (using <code>lw</code>), the data is only ready at the end of the <strong>Memory</strong> stage. If the very next instruction needs that data in <strong>Execute</strong>, forwarding backward in time is physically impossible. The <strong>Hazard Detection Unit</strong> freezes Fetch & Decode and injects a 1-cycle bubble (NOP).
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">✂ Branch Hazards & Flushes</div>
+          <p class="explainer-text">
+            When a conditional branch (like <code>beq</code> or <code>bne</code>) is taken, the CPU jumps to a new target address. The two instructions speculatively fetched in IF and ID are on the wrong execution path, so the CPU <strong>flushes</strong> (clears) them by converting them to NOPs.
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="data/sources.js"></script>
+  <script>
+    (function(){
+      var files = window.CPU_SOURCES ? Object.keys(window.CPU_SOURCES) : [];
+      var list = document.getElementById("source-file-list");
+      var pre = document.getElementById("code-content");
+      var title = document.getElementById("current-filename");
+
+      if (!files.length) {
+        pre.textContent = "// window.CPU_SOURCES not found in data/sources.js";
+        return;
+      }
+
+      files.forEach(function(f, idx){
+        var btn = document.createElement("button");
+        btn.className = "source-file-btn" + (idx === 0 ? " active" : "");
+        btn.textContent = f;
+        btn.onclick = function(){
+          document.querySelectorAll(".source-file-btn").forEach(function(b){ b.classList.remove("active"); });
+          btn.classList.add("active");
+          show(f);
+        };
+        list.appendChild(btn);
+      });
+
+      function show(f){
+        title.textContent = f;
+        pre.textContent = window.CPU_SOURCES[f] || "// Empty file";
+      }
+
+      show(files[0]);
+    })();
+  </script>
+</body>
+</html>
