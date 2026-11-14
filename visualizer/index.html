@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5-Stage Pipelined CPU Visualizer | Custom RISC Verilog Core</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Navigation Header -->
+    <header>
+      <div class="brand">
+        <span class="brand-badge">Verilog RTL Hardware</span>
+        <div>
+          <div class="brand-title">5-STAGE PIPELINED CPU VISUALIZER</div>
+          <div class="brand-sub">Real cycle-by-cycle simulation traces from custom 32-bit RISC core</div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="nav-tab-btn active" data-tab="pipeline">⚡ Pipeline View</button>
+        <button class="nav-tab-btn" data-tab="sources">📄 Verilog Source Code</button>
+        <button class="nav-tab-btn" data-tab="explainer">❓ What am I looking at?</button>
+      </nav>
+
+      <!-- Program & Kiosk Actions -->
+      <div class="header-actions">
+        <select id="program-select" class="program-select">
+          <option value="bubble_sort">Bubble Sort (In-Place Array Sorting)</option>
+          <option value="fibonacci">Fibonacci Sequence (0..34)</option>
+        </select>
+        <button id="btn-kiosk" class="btn-kiosk" title="Loop programs automatically for exhibition crowds">
+          ★ Kiosk Mode
+        </button>
+      </div>
+    </header>
+
+    <!-- ==================== TAB 1: PIPELINE DASHBOARD ==================== -->
+    <main id="tab-pipeline">
+
+      <!-- Playback Control Deck -->
+      <section class="control-deck">
+        <div class="playback-buttons">
+          <button id="btn-first" class="btn-control" title="Jump to Cycle 1">⏮ First</button>
+          <button id="btn-prev" class="btn-control" title="Step Back (Left Arrow)">◀ Prev</button>
+          <button id="btn-play" class="btn-control btn-play-pause" title="Play/Pause (Spacebar)">▶ Play</button>
+          <button id="btn-next" class="btn-control" title="Step Forward (Right Arrow)">Next ▶</button>
+          <button id="btn-last" class="btn-control" title="Jump to Final Cycle">⏭ End</button>
+          <button id="btn-reset" class="btn-control" title="Reset Simulation (R)">↺ Reset</button>
+        </div>
+
+        <div class="scrubber-group">
+          <input type="range" id="scrubber-slider" class="scrubber-slider" min="1" max="404" value="1">
+          <div id="cycle-badge" class="cycle-counter-badge mono">Cycle <span class="text-cyan">1</span> of 404</div>
+        </div>
+
+        <div class="speed-control">
+          <span>Speed:</span>
+          <button class="speed-btn" data-speed="1000">0.5x</button>
+          <button class="speed-btn active" data-speed="400">1x</button>
+          <button class="speed-btn" data-speed="150">3x</button>
+          <button class="speed-btn" data-speed="40">10x</button>
+        </div>
+      </section>
+
+      <!-- Event Alert Banners (Stall / Flush) -->
+      <section class="event-banners">
+        <div id="banner-stall" class="banner banner-stall" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="banner-tag">STALL DETECTED</span>
+            <span><strong>Load-Use Hazard:</strong> Instruction needs data loaded from memory in previous cycle. IF & ID stages are frozen; 1 bubble injected into EX stage.</span>
+          </div>
+          <span class="mono" id="stall-cycle-label">Cycle --</span>
+        </div>
+
+        <div id="banner-flush" class="banner banner-flush" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="banner-tag">BRANCH FLUSH</span>
+            <span><strong>Branch Taken:</strong> Target resolved in EX stage. The 2 speculatively fetched instructions in IF and ID are cancelled.</span>
+          </div>
+          <span class="mono" id="flush-cycle-label">Cycle --</span>
+        </div>
+      </section>
+
+      <!-- 5-Stage Pipeline Diagram -->
+      <section class="pipeline-section">
+        <div class="pipeline-header">
+          <div class="pipeline-title">5-Stage Hardware Datapath Pipeline Flow</div>
+          <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
+            Color matches each instruction as it travels through IF ➔ ID ➔ EX ➔ MEM ➔ WB
+          </div>
+        </div>
+
+        <div class="pipeline-grid">
+          <!-- IF Stage -->
+          <div class="stage-card" id="stage-card-if">
+            <div class="stage-top">
+              <span class="stage-name text-cyan">IF · FETCH</span>
+              <span class="stage-badge">ACTIVE</span>
+            </div>
+            <div class="stage-body">
+              <div class="stage-asm">--</div>
+              <div class="stage-hex">--</div>
+            </div>
+            <div class="stage-meta">
+              <span>PC: <strong class="stage-pc-val mono">--</strong></span>
+              <span>Target: IMEM</span>
+            </div>
+          </div>
+
+          <!-- ID Stage -->
+          <div class="stage-card" id="stage-card-id">
+            <div class="stage-top">
+              <span class="stage-name text-blue">ID · DECODE</span>
+              <span class="stage-badge">ACTIVE</span>
+            </div>
+            <div class="stage-body">
+              <div class="stage-asm">--</div>
+              <div class="stage-hex">--</div>
+            </div>
+            <div class="stage-meta">
+              <span>PC: <strong class="stage-pc-val mono">--</strong></span>
+              <span>RegFile Read</span>
+            </div>
+          </div>
+
+          <!-- EX Stage -->
+          <div class="stage-card" id="stage-card-ex">
+            <div class="stage-top">
+              <span class="stage-name text-amber">EX · EXECUTE</span>
+              <span class="stage-badge">ACTIVE</span>
+            </div>
+            <div class="stage-body">
+              <div class="stage-asm">--</div>
+              <div class="stage-hex">--</div>
+            </div>
+            <div class="stage-meta">
+              <span>PC: <strong class="stage-pc-val mono">--</strong></span>
+              <span>ALU Operation</span>
+            </div>
+          </div>
+
+          <!-- MEM Stage -->
+          <div class="stage-card" id="stage-card-mem">
+            <div class="stage-top">
+              <span class="stage-name text-purple">MEM · MEMORY</span>
+              <span class="stage-badge">ACTIVE</span>
+            </div>
+            <div class="stage-body">
+              <div class="stage-asm">--</div>
+              <div class="stage-hex">--</div>
+            </div>
+            <div class="stage-meta">
+              <span>PC: <strong class="stage-pc-val mono">--</strong></span>
+              <span>RAM Access</span>
+            </div>
+          </div>
+
+          <!-- WB Stage -->
+          <div class="stage-card" id="stage-card-wb">
+            <div class="stage-top">
+              <span class="stage-name text-emerald">WB · WRITEBACK</span>
+              <span class="stage-badge">ACTIVE</span>
+            </div>
+            <div class="stage-body">
+              <div class="stage-asm">--</div>
+              <div class="stage-hex">--</div>
+            </div>
+            <div class="stage-meta">
+              <span>PC: <strong class="stage-pc-val mono">--</strong></span>
+              <span>Commit to GPR</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Forwarding & ALU Highways -->
+        <div class="forwarding-highway">
+          <span style="font-weight: 800; color: var(--text-muted);">FORWARDING & BYPASS BUS:</span>
+          <span id="fwd-a-badge" class="forwarding-pill fwd-idle">FwdA: RegFile</span>
+          <span id="fwd-b-badge" class="forwarding-pill fwd-idle">FwdB: RegFile</span>
+          <span id="alu-res-badge" class="forwarding-pill fwd-idle">ALU Out: 0 (0x00000000)</span>
+          <span id="wb-commit-badge" class="forwarding-pill fwd-idle">WB: No write</span>
+        </div>
+      </section>
+
+      <!-- Middle Section: Memory Bar Chart + Program Listing -->
+      <section class="middle-grid">
+        <!-- Left: Data Memory Bars & Live Statistics -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- Memory Bar Chart Panel -->
+          <div class="card-panel">
+            <div class="card-title-bar">
+              <span class="card-title">Data Memory (M[0] .. M[7]) Live Sorting Bars</span>
+              <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">
+                Watch bars sort in real-time
+              </span>
+            </div>
+
+            <!-- Dynamic Bar Chart Container -->
+            <div id="bar-chart" class="bar-chart-container">
+              <!-- Dynamically populated 8 bars -->
+            </div>
+
+            <!-- Memory Words Grid (16 Words) -->
+            <div style="font-size: 11px; font-weight: bold; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+              Data RAM Words (M[0] .. M[15])
+            </div>
+            <div id="mem-words-grid" class="mem-words-grid">
+              <!-- 16 memory cells -->
+            </div>
+          </div>
+
+          <!-- Statistics & Live Performance Panel -->
+          <div class="card-panel">
+            <div class="card-title-bar">
+              <span class="card-title">Live Hardware Metrics & Summary</span>
+              <span style="font-size: 11px; color: var(--emerald); font-weight: bold;">Verified Simulation Data</span>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="stat-label">Cycles</div>
+                <div class="stat-number text-cyan" id="stat-cycles">1 / 404</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Instructions Retired</div>
+                <div class="stat-number text-emerald" id="stat-retired">0</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Stall Cycles</div>
+                <div class="stat-number text-rose" id="stat-stalls">0</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Branch Flushes</div>
+                <div class="stat-number text-amber" id="stat-flushes">0</div>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding: 10px 14px; background: var(--bg-input); border-radius: 8px; border: 1px solid var(--border);">
+              <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">Current CPI (Cycles Per Instruction):</span>
+              <span class="mono" style="font-size: 18px; font-weight: 800; color: #fff;" id="stat-cpi">1.00</span>
+            </div>
+
+            <div id="summary-box" style="margin-top: 12px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-input);">
+              <!-- Target Program Summary injected via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Program Disassembly Listing -->
+        <div class="card-panel" style="display: flex; flex-direction: column;">
+          <div class="card-title-bar">
+            <span class="card-title">Assembly Program Listing</span>
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">
+              Highlights active PC & stages
+            </span>
+          </div>
+
+          <div class="listing-scroll">
+            <table class="listing-table">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: 11px; text-align: left;">
+                  <th style="padding: 6px 10px;">PC</th>
+                  <th style="padding: 6px 10px;">HEX</th>
+                  <th style="padding: 6px 10px;">INSTRUCTION</th>
+                </tr>
+              </thead>
+              <tbody id="listing-body">
+                <!-- Program rows injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom Section: Register File (x0..x31) -->
+      <section class="card-panel">
+        <div class="card-title-bar">
+          <span class="card-title">Architectural Register File (x0 .. x31)</span>
+          <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">
+            Flashing green indicates register written in current cycle
+          </span>
+        </div>
+
+        <div id="regfile-grid" class="regfile-grid">
+          <!-- 32 registers populated via JS -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ==================== TAB 2: VERILOG SOURCE CODE ==================== -->
+    <main id="tab-sources" style="display: none;">
+      <section class="source-tab-container">
+        <!-- File Browser -->
+        <div class="source-file-list" id="source-file-list">
+          <!-- Populated from window.CPU_SOURCES -->
+        </div>
+
+        <!-- Monospace Code Viewer -->
+        <div class="source-viewer">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span id="source-file-name" class="mono text-cyan" style="font-weight: 700; font-size: 14px;">rtl/cpu_pipeline.v</span>
+            <span style="font-size: 11px; color: var(--text-muted);">Verilog HDL IEEE 1364-2001</span>
+          </div>
+          <pre class="source-code-pre"><code id="source-code-pre">// Source file content</code></pre>
+        </div>
+      </section>
+    </main>
+
+    <!-- ==================== TAB 3: PLAIN-ENGLISH EXPLAINER ==================== -->
+    <main id="tab-explainer" style="display: none;">
+      <section class="explainer-container">
+        <div class="explainer-card">
+          <div class="explainer-title">🏭 The 5-Stage Pipeline</div>
+          <p class="explainer-text">
+            Think of a car assembly line. Instead of building one entire car from start to finish before starting the next, a 5-stage CPU divides work into 5 steps: <strong>Fetch, Decode, Execute, Memory, and Write-Back</strong>. At any given moment, 5 instructions are being processed simultaneously, giving a ~5x throughput increase.
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">⚡ Hardware Forwarding (Bypassing)</div>
+          <p class="explainer-text">
+            When instruction B needs a result that instruction A just computed, the CPU doesn't wait for instruction A to write to the register file and instruction B to read it back. Instead, dedicated <strong>Forwarding multiplexers</strong> route the result directly from the ALU or Memory output straight into the next instruction's ALU input.
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">⚠️ Load-Use Hazards & Stalls</div>
+          <p class="explainer-text">
+            When data is read from RAM (using a <code>lw</code> load instruction), it is only available at the end of the <strong>Memory</strong> stage. If the very next instruction immediately needs that data in the <strong>Execute</strong> stage, forwarding is physically impossible because time cannot run backward! The <strong>Hazard Detection Unit</strong> automatically pauses the Fetch & Decode stages and inserts a 1-cycle "bubble" (NOP).
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">✂ Branch Hazards & Flushes</div>
+          <p class="explainer-text">
+            When a conditional branch (like <code>beq</code> or <code>bne</code>) is taken, the CPU jumps to a new memory address. However, the CPU had already speculatively fetched the next two instructions in line. The CPU resolves the branch in the Execute stage, recognizes the jump, and <strong>flushes</strong> (discards) the two incorrectly fetched instructions by converting them into NOPs.
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">📊 CPI (Cycles Per Instruction)</div>
+          <p class="explainer-text">
+            In an ideal world with no hazards, a pipelined CPU retires 1 instruction every single clock cycle (CPI = 1.0). In real software, due to load-use stalls and branch flushes, the CPI is slightly higher. For our Bubble Sort program, it achieves a very impressive <strong>CPI of 1.46</strong>, executing 277 instructions in 404 clock cycles!
+          </p>
+        </div>
+
+        <div class="explainer-card">
+          <div class="explainer-title">★ Kiosk Mode for Exhibitions</div>
+          <p class="explainer-text">
+            Click the <strong>★ Kiosk Mode</strong> button in the top right to turn this into an unattended kiosk display. It increases text size for readability from a distance, plays Bubble Sort to completion, pauses on the final sorted array for 3.5 seconds, switches to Fibonacci, and loops back continuously!
+          </p>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <!-- OFFLINE SCRIPT TAGS (No fetch, no CORS issues over file:// protocol) -->
+  <script src="data/sources.js"></script>
+  <script src="data/traces.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
