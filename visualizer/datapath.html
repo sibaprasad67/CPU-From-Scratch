@@ -54,11 +54,17 @@ td{padding:3px 8px;border-bottom:1px solid #141d30}
 <body>
 <header>
   <h1>5-STAGE PIPELINED CPU: LIVE DATAPATH<small>Every value on this page comes from simulating the real Verilog design (Icarus Verilog), cycle by cycle.</small></h1>
-  <a href="index.html">Source code &amp; explainer view &rarr;</a>
+  <a href="explainer.html">Source code &amp; explainer view &rarr;</a>
 </header>
 
 <div class="bar">
-  <select id="prog"><option value="bubble_sort">Bubble Sort (8 numbers)</option><option value="fibonacci">Fibonacci (10 numbers)</option></select>
+  <select id="prog">
+    <option value="bubble_sort">Bubble Sort (8 numbers)</option>
+    <option value="fibonacci">Fibonacci (10 numbers)</option>
+    <option value="binary_search">Binary Search (Find 23 in sorted array)</option>
+    <option value="bfs_traversal">BFS Tree Traversal (Level-Order)</option>
+    <option value="dfs_traversal">DFS Tree Traversal (Pre-Order)</option>
+  </select>
   <button id="first">&#9198;</button><button id="prev">&#9664;</button>
   <button id="play" class="on">&#9654; Play</button>
   <button id="next">&#9654;</button><button id="last">&#9197;</button>
@@ -98,7 +104,7 @@ td{padding:3px 8px;border-bottom:1px solid #141d30}
 (function(){
 var T=window.CPU_TRACES;
 if (!T) {
-  document.body.innerHTML = '<div style="padding:40px;color:#f87171;font-family:sans-serif;text-align:center"><h2>Error: window.CPU_TRACES not found</h2><p>Make sure visualizer/data/traces.js is present.</p></div>';
+  document.body.innerHTML = '<div style="padding:40px;color:#f87171;font-family:sans-serif;text-align:center"><h2>Error: window.CPU_TRACES not found</h2><p>Make sure visualizer/data/traces.js is loaded.</p></div>';
   return;
 }
 var prog='bubble_sort', idx=0, playing=true, speed=400, timer=null, kiosk=false;
@@ -217,9 +223,9 @@ function setProg(p){
 }
 
 function stroke(id,c,w){var e=el(id); if(!e)return; var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('stroke',c); if(w) t.setAttribute('stroke-width',w);}
-function fill(id,c){var e=el(id); if(!e)return; var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('fill',c);}
-function wire(ids,c,on){ids.forEach(function(id){var e=el(id); if(e){e.setAttribute('stroke',on?c:DIM); e.setAttribute('stroke-width',on?4:3); e.style.filter=on?'drop-shadow(0 0 4px '+c+')':'none';}});}
-function glow(id,c,on){var e=el(id); if(!e)return; var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('stroke',on?c:DIM); t.setAttribute('fill',on?c.replace('hsl','hsla').replace(')',',0.16)'):'#0a101d'); t.setAttribute('stroke-width',on?3:2);}
+function fill(id,c){var e=el(id); var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('fill',c);}
+function wire(ids,c,on){ids.forEach(function(id){var e=el(id); e.setAttribute('stroke',on?c:DIM); e.setAttribute('stroke-width',on?4:3); e.style.filter=on?'drop-shadow(0 0 4px '+c+')':'none';});}
+function glow(id,c,on){var e=el(id);var t=e.tagName==='g'?e.firstChild:e; t.setAttribute('stroke',on?c:DIM); t.setAttribute('fill',on?c.replace('hsl','hsla').replace(')',',0.16)'):'#0a101d'); t.setAttribute('stroke-width',on?3:2);}
 
 var cum=null;
 function buildCum(){ // cumulative stats per cycle
@@ -318,18 +324,26 @@ function render(){
     $('lt'+i).innerHTML=t; $('l'+i).style.background=tags[i]?'#13203a':'';
   });
   var first=null; ['WB','MEM','EX','ID','IF'].forEach(function(s){if(!st[s].bubble)first=st[s].pc/4;});
-  if(first!==null){
-    var row=$('l'+first);
-    if(row && row.parentNode && row.parentNode.parentNode && row.parentNode.parentNode.parentNode){
-      var box=row.parentNode.parentNode.parentNode;
-      box.scrollTop=row.offsetTop-box.clientHeight/2;
-    }
-  }
+  if(first!==null){var row=$('l'+first); if(row){var box=row.parentNode.parentNode.parentNode; box.scrollTop=row.offsetTop-box.clientHeight/2;}}
 }
 
 function step(d){
   var N=T[prog].cycles.length; idx=Math.max(0,Math.min(N-1,idx+d)); render();
-  if(idx>=N-1&&playing){ if(kiosk){playing=false;setTimeout(function(){var p=prog==='bubble_sort'?'fibonacci':'bubble_sort';$('prog').value=p;setProg(p);playing=true;sched();},3500);} else {pause();} }
+  if(idx>=N-1&&playing){
+    if(kiosk){
+      playing=false;
+      setTimeout(function(){
+        var all=['bubble_sort','binary_search','bfs_traversal','dfs_traversal','fibonacci'];
+        var next=all[(all.indexOf(prog)+1)%all.length];
+        $('prog').value=next;
+        setProg(next);
+        playing=true;
+        sched();
+      },3500);
+    } else {
+      pause();
+    }
+  }
 }
 function sched(){clearTimeout(timer); if(playing) timer=setTimeout(function(){if(playing){step(1);sched();}},speed);}
 function play(){playing=true;$('play').innerHTML='&#10074;&#10074; Pause';$('play').classList.add('on');if(idx>=T[prog].cycles.length-1){idx=0;render();}sched();}

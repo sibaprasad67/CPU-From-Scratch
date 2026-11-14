@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "visualizer" / "data"
-PROGRAMS = ["bubble_sort", "fibonacci"]   # programs/<name>.hex (each must set x31 = 1 when finished)
+PROGRAMS = ["bubble_sort", "fibonacci", "binary_search", "bfs_traversal", "dfs_traversal"]   # programs/<name>.hex (each must set x31 = 1 when finished)
 DRAIN = 6          # extra cycles recorded after the program sets its done flag (x31 = 1)
 MAXCYC = 3000
 

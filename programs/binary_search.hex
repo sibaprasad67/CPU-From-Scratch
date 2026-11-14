@@ -1,0 +1,50 @@
+00200093 // 0x00: addi x1, x0, 2
+00102023 // 0x04: sw   x1, 0(x0)
+00500093 // 0x08: addi x1, x0, 5
+00102223 // 0x0c: sw   x1, 4(x0)
+00800093 // 0x10: addi x1, x0, 8
+00102423 // 0x14: sw   x1, 8(x0)
+00c00093 // 0x18: addi x1, x0, 12
+00102623 // 0x1c: sw   x1, 12(x0)
+01000093 // 0x20: addi x1, x0, 16
+00102823 // 0x24: sw   x1, 16(x0)
+01700093 // 0x28: addi x1, x0, 23
+00102a23 // 0x2c: sw   x1, 20(x0)
+02600093 // 0x30: addi x1, x0, 38
+00102c23 // 0x34: sw   x1, 24(x0)
+03800093 // 0x38: addi x1, x0, 56
+00102e23 // 0x3c: sw   x1, 28(x0)
+00000293 // 0x40: addi x5, x0, 0
+00700313 // 0x44: addi x6, x0, 7
+01700393 // 0x48: addi x7, x0, 23
+00532433 // 0x4c: slt  x8, x6, x5
+06041463 // 0x50: bne  x8, x0, not_found
+006284b3 // 0x54: add  x9, x5, x6
+00000513 // 0x58: addi x10, x0, 0
+00200593 // 0x5c: addi x11, x0, 2
+00b4a633 // 0x60: slt  x12, x9, x11
+00061863 // 0x64: bne  x12, x0, div_done
+ffe48493 // 0x68: addi x9, x9, -2
+00150513 // 0x6c: addi x10, x10, 1
+fedff06f // 0x70: jal  x0, div_loop
+00a506b3 // 0x74: add  x13, x10, x10
+00d686b3 // 0x78: add  x13, x13, x13
+0006a703 // 0x7c: lw   x14, 0(x13)
+407707b3 // 0x80: sub  x15, x14, x7
+00078e63 // 0x84: beq  x15, x0, found
+00772833 // 0x88: slt  x16, x14, x7
+00081663 // 0x8c: bne  x16, x0, go_right
+fff50313 // 0x90: addi x6, x10, -1
+fb9ff06f // 0x94: jal  x0, search_loop
+00150293 // 0x98: addi x5, x10, 1
+fb1ff06f // 0x9c: jal  x0, search_loop
+02a02023 // 0xa0: sw   x10, 32(x0)
+02702223 // 0xa4: sw   x7,  36(x0)
+00100093 // 0xa8: addi x1,  x0, 1
+02102423 // 0xac: sw   x1,  40(x0)
+00100f93 // 0xb0: addi x31, x0, 1
+00000063 // 0xb4: beq  x0,  x0, halt_found
+fff00093 // 0xb8: addi x1,  x0, -1
+02102023 // 0xbc: sw   x1,  32(x0)
+00100f93 // 0xc0: addi x31, x0, 1
+00000063 // 0xc4: beq  x0,  x0, halt_not_found
