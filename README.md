@@ -2,8 +2,6 @@
 
 A 32-bit, 5-stage pipelined CPU written in Verilog, built from the gates up: ALU, register file, memories, control unit, then a single-cycle CPU, then a pipeline with hazard handling. It runs real programs, including a bubble sort.
 
-Built for **Sankalp Techno Feast, NIST University** by Siba Prasad Bhuyan (B.Tech CSE AI/ML).
-
 ![Pipeline waveform](docs/pipeline_waveform.png)
 
 *The pipeline running bubble sort: instructions moving through the stages, `stall` pulsing on load-use, `pc_src` pulsing on taken branches, and `fwd_a_sel` showing forwarded values.*
